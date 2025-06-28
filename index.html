@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flipbook Creator – Upload & Download</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+
+    header {
+      background: #222;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    input[type="file"] {
+      margin-top: 15px;
+      padding: 10px;
+      font-size: 16px;
+      background: #fff;
+      color: #000;
+      border-radius: 5px;
+    }
+
+    button, a.download-btn {
+      display: inline-block;
+      padding: 10px 25px;
+      font-size: 16px;
+      margin-top: 15px;
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    #benefits {
+      color: #ccc;
+      margin-top: 10px;
+      font-size: 15px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #statusMessage {
+      margin-top: 20px;
+      color: #28a745;
+      font-weight: bold;
+    }
+
+    #flipbook {
+      display: none;
+      width: 800px;
+      height: 500px;
+      margin: 30px auto;
+    }
+
+    .page {
+      width: 400px;
+      height: 500px;
+      background: #fff;
+      box-shadow: 0 0 8px #000;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #downloadSection {
+      display: none;
+      margin-top: 20px;
+    }
+
+    #fileNameDisplay {
+      margin-top: 10px;
+      color: #aaa;
+      font-size: 14px;
+    }
+
+    footer {
+      background: #222;
+      color: #28a745;
+      padding: 15px;
+      margin-top: 40px;
+    }
+
+    footer a {
+      margin: 0 10px;
+      color: #28a745;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media screen and (max-width: 768px) {
+      #flipbook {
+        width: 90% !important;
+        height: auto;
+      }
+
+      .page {
+        width: 100% !important;
+        height: auto;
+      }
+    }
+  </style>
+
+  <!-- JS Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/turn.js@4/turn.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>📘 Flipbook Creator</h1>
+    <p>Upload a PDF file from your device to view and download it as a flipbook</p>
+    <input type="file" id="pdfFile" accept="application/pdf" />
+    <br>
+    <button onclick="createFlipbook()">Create Flipbook</button>
+
+    <div id="benefits">
+      <p>✨ This website converts your PDF into a realistic flipbook.</p>
+      <ul style="text-align: left; max-width: 600px; margin: 10px auto;">
+        <li>📄 Slide-style format like Google Docs</li>
+        <li>📱 Works on desktop and mobile devices</li>
+        <li>⬇️ Download your original PDF anytime</li>
+        <li>🔒 File stays on your device – no server uploads</li>
+        <li>🚀 Fast, secure and free to use</li>
+      </ul>
+    </div>
+
+    <div id="statusMessage"></div>
+  </header>
+
+  <div id="flipbook"></div>
+
+  <div id="downloadSection">
+    <div id="fileNameDisplay"></div>
+    <a id="downloadBtn" class="download-btn" href="#" download>⬇️ Download PDF</a>
+  </div>
+
+  <footer>
+    <a href="#">About</a>
+    <a href="#">Contact</a>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms</a>
+  </footer>
+
+  <script>
+    let uploadedPDFBlob = null;
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+    async function createFlipbook() {
+      const fileInput = document.getElementById("pdfFile");
+      const container = document.getElementById("flipbook");
+      const status = document.getElementById("statusMessage");
+      const fileNameDisplay = document.getElementById("fileNameDisplay");
+      const downloadSection = document.getElementById("downloadSection");
+
+      status.textContent = "";
+      fileNameDisplay.textContent = "";
+      downloadSection.style.display = "none";
+
+      if (!fileInput.files.length) {
+        alert("Please upload a PDF file.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      uploadedPDFBlob = file;
+
+      if ($(container).data("turn")) {
+        $(container).turn("destroy").html("");
+      } else {
+        container.innerHTML = "";
+      }
+
+      container.style.display = "none";
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const typedArray = new Uint8Array(reader.result);
+
+        try {
+          const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+          const pageCount = pdf.numPages;
+
+          for (let i = 1; i <= pageCount; i++) {
+            status.textContent = `Loading page ${i} of ${pageCount}...`;
+
+            try {
+              const page = await pdf.getPage(i);
+              const canvas = document.createElement("canvas");
+              const context = canvas.getContext("2d");
+              const viewport = page.getViewport({ scale: 1.5 });
+              canvas.width = viewport.width;
+              canvas.height = viewport.height;
+              await page.render({ canvasContext: context, viewport }).promise;
+
+              const pageDiv = document.createElement("div");
+              pageDiv.className = "page";
+              pageDiv.appendChild(canvas);
+              container.appendChild(pageDiv);
+            } catch (pageErr) {
+              console.error("Error rendering page:", i, pageErr);
+              status.textContent = `⚠️ Error rendering page ${i}. Skipping...`;
+            }
+          }
+
+          if (pdf.numPages > 0) {
+            $(container).turn({
+              width: 800,
+              height: 500,
+              autoCenter: true,
+              display: 'double',
+              acceleration: true,
+              gradients: true
+            });
+
+            container.style.display = "block";
+            status.textContent = "✅ Flipbook is ready!";
+
+            const blobURL = URL.createObjectURL(uploadedPDFBlob);
+            const downloadLink = document.getElementById("downloadBtn");
+            downloadLink.href = blobURL;
+            downloadLink.download = uploadedPDFBlob.name;
+
+            fileNameDisplay.textContent = `📄 File: ${uploadedPDFBlob.name}`;
+            downloadSection.style.display = "block";
+          } else {
+            alert("❌ No pages found in this PDF.");
+          }
+
+        } catch (err) {
+          console.error("Main PDF load failed:", err);
+          alert("❌ Failed to load PDF. Please try another file.");
+          status.textContent = "";
+        }
+      };
+
+      reader.onerror = function () {
+        console.error("File read error.");
+        alert("❌ Unable to read file.");
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+  </script>
+
+</body>
+</html>
